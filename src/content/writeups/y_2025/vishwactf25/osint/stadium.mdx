@@ -1,0 +1,52 @@
+import { Steps } from "nextra/components";
+
+# Stadium
+
+## Overview
+
+---
+
+| Description    | Details                                       |
+| :------------- | :-------------------------------------------- |
+| Event name     | [VishwaCTF25](https://https://vishwactf.com/) |
+| Challenge name | Stadium                                       |
+| Category       | OSINT                                         |
+| Points         | -                                             |
+| Date           | 03-03-2025                                    |
+
+### Challenge Information
+
+> My friend wanted to play a cricket match, he told me to find the best place to play a game. So I did. Can you identify the stadium where we played our match?
+
+### Additional Information
+
+> We were provided with a picture of stadium
+
+![Stadium Image](/vishwactf25/stadium.png)
+
+## Analysis
+
+---
+
+Given the image is quite clear we can then start using google image to search the name of the stadium.
+
+## Solution
+
+---
+
+<Steps>
+### Initial setup
+
+Upload image to google image and look for stadium name. Here we find out that stadium name is Salling cricket stadium ghanche
+![Google Image - Stadium](/vishwactf25/google-image-stadium.png)
+
+Google search the information to confirm the offial name of the stadium, and we get Saling Cricket Stadium Ghanche.
+![Saling Cricket Stadium Ghanche](/vishwactf25/saling-cricket-stadium-ghanche.png)
+
+### Flag
+
+```
+VishwaCTF{Saling_Cricket_Stadium_Ghanche}
+```
+
+</Steps>
