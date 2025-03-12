@@ -31,7 +31,7 @@ export default async function RootLayout({
           navigation={false}
           sidebar={{ autoCollapse: true }}
           footer={footer}
-          search={<Search placeholder={"Search..."} />}
+          search={<Search placeholder={"Search"} />}
         >
           {children}
         </Layout>
