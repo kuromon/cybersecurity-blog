@@ -13,7 +13,7 @@ const meta = {
             toc: false
         }
     },
-    'y_2025': '2025'
+    '_2025': '2025'
 };
 
 export default meta;
